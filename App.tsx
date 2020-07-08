@@ -2,12 +2,9 @@ import 'react-native-gesture-handler';
 
 import React, { useRef } from 'react';
 
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { 
-  State, 
-  PanGestureHandler, 
-  PanGestureHandlerGestureEvent,
-  PanGestureHandlerStateChangeEvent,
+  State,
   TapGestureHandler,
   TapGestureHandlerStateChangeEvent,
   PinchGestureHandler, 
@@ -17,8 +14,7 @@ import {
 
 import 
   Animated, { 
-  Value, 
-  add,
+  Value,
   event, 
   cond, 
   eq, 
@@ -32,8 +28,12 @@ import
   clockRunning, 
   startClock,
   stopClock,
-  useCode
+  useCode,
+  sub
 } from "react-native-reanimated";
+
+const IMAGE_DIMENSIONS = {width: 182, height: 180,}
+const CENTER = {x: IMAGE_DIMENSIONS.width / 2, y: IMAGE_DIMENSIONS.height / 2}
 
 const runTimming = (clock: Clock, from: Animated.Value<number>, reset: () => Animated.Node<number>) => {
 
@@ -71,11 +71,6 @@ const runTimming = (clock: Clock, from: Animated.Value<number>, reset: () => Ani
 
 const App = () => {
   const clock = useRef(new Clock()).current;
-  const transX = useRef(new Value(0)).current;
-  const offsetX = useRef(new Value(0)).current;
-  
-  const transY = useRef(new Value(0)).current;
-  const offsetY = useRef(new Value(0)).current;
 
   const scaleXY = useRef(new Value<number>(1)).current;
   const offset = useRef(new Value<number>(1)).current;
@@ -83,12 +78,10 @@ const App = () => {
   const _scaleTiming = useRef(new Value<number>(0)).current;
   const _scale = multiply(offset, scaleXY);
   
+  const origin = useRef({x: new Value<number>(0), y: new Value<number>(0)}).current;
+  
   const reset = () => 
     block([
-      // set(transX, 0),
-      // set(offsetX, 0),
-      // set(transY, 0),
-      // set(offsetY, 0),
       set(offset, 1),
       set(scaleXY, 1),
     ]);
@@ -97,22 +90,13 @@ const App = () => {
     set(_scaleTiming, _scale),
   ]), [_scale])
 
-  const _onPanchGestureEvent = event<PanGestureHandlerGestureEvent & PanGestureHandlerStateChangeEvent>([{
-    nativeEvent: ({translationX, translationY, state, oldState}) => block([
-      cond(eq(state, State.ACTIVE), [
-        set(transX, add(offsetX, translationX)),
-        set(transY, add(offsetY, translationY)),
-      ]),
-      cond(eq(oldState, State.ACTIVE), [
-        set(offsetX, transX),
-        set(offsetY, transY),
-      ]),
-    ])
-  }]);
-
   const _onPinchGestureEvent = event<PinchGestureHandlerGestureEvent & PinchGestureHandlerStateChangeEvent>([{
-    nativeEvent: ({ scale, state, oldState }) => block([
-      cond(eq(state, State.ACTIVE), set(scaleXY, scale)),
+    nativeEvent: ({ scale, state, oldState, focalX, focalY }) => block([
+      cond(eq(state, State.ACTIVE), [
+        set(scaleXY, scale),
+        set(origin.x, sub(focalX, CENTER.x)),
+        set(origin.y, sub(focalY, CENTER.y)),
+      ]),
       cond(eq(oldState, State.ACTIVE), [
         set(_scaleTiming, _scale), 
         set(offset, _scale)
@@ -122,52 +106,38 @@ const App = () => {
 
   const _onHandlerStateChange = event<TapGestureHandlerStateChangeEvent>([{
     nativeEvent: ({state}) => block([
-      // runTimming(clock, _scale),
-      cond(eq(state, State.END), set(_scaleTiming, runTimming(clock, _scaleTiming, reset)))
+      cond(eq(state, State.END), [
+        set(_scaleTiming, runTimming(clock, _scaleTiming, reset)),
+      ])
     ])
-    
-    
   }]);
 
   return (
-    <View style={styles.container}>
-    <PanGestureHandler 
-      onGestureEvent={_onPanchGestureEvent} 
-      onHandlerStateChange={_onPanchGestureEvent}>
-      <Animated.View 
-        style={[
-          {backgroundColor: "green"}, 
-          {
-            transform: [
-              {translateX: transX},
-              {translateY: transY},
-            ]
-          }]}>
-        <TapGestureHandler onHandlerStateChange={_onHandlerStateChange} numberOfTaps={2}>
-          <Animated.View>
-            <PinchGestureHandler
-              onGestureEvent={_onPinchGestureEvent}
-              onHandlerStateChange={_onPinchGestureEvent}>
-                <Animated.Image
-                  resizeMode="stretch"
-                  source={require("./avatar.png")}
-                  style={[
-                    styles.pinchableImage,
-                    {
-                      transform: [
-                        { perspective: 1000 },
-                        
-                        { scale: _scaleTiming },
-                      ],
-                    },
-                  ]}
-                />
-            </PinchGestureHandler>
-          </Animated.View>
-        </TapGestureHandler>
+    <TapGestureHandler onHandlerStateChange={_onHandlerStateChange} numberOfTaps={2}>
+      <Animated.View style={styles.container}>
+        <PinchGestureHandler
+          onGestureEvent={_onPinchGestureEvent}
+          onHandlerStateChange={_onPinchGestureEvent}>
+            <Animated.Image
+              resizeMode="stretch"
+              source={require("./avatar.png")}
+              style={[
+                styles.pinchableImage,
+                {
+                  transform: [
+                    {translateX: origin.x},
+                    {translateY: origin.y},
+                    { scale: _scaleTiming },
+                    {translateX: multiply(-1, origin.x)},
+                    {translateY: multiply(-1, origin.y)},
+
+                  ],
+                },
+              ]}
+            />
+        </PinchGestureHandler>
       </Animated.View>
-    </PanGestureHandler>
-    </View>
+    </TapGestureHandler>
   );
 }
 
@@ -178,8 +148,8 @@ const styles = StyleSheet.create({
     justifyContent: "center"
   },
   pinchableImage: {
-    width: 182,
-    height: 180,
+    width: IMAGE_DIMENSIONS.width,
+    height: IMAGE_DIMENSIONS.height,
     backgroundColor: "#ddd",
   }
 
