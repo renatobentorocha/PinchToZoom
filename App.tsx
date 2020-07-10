@@ -2,7 +2,7 @@ import 'react-native-gesture-handler';
 
 import React, { useRef } from 'react';
 
-import { StyleSheet } from 'react-native';
+import { StyleSheet, Dimensions } from 'react-native';
 import { 
   State,
   TapGestureHandler,
@@ -29,10 +29,12 @@ import
   startClock,
   stopClock,
   useCode,
-  sub
+  sub,
+  greaterOrEq
 } from "react-native-reanimated";
 
-const IMAGE_DIMENSIONS = {width: 182, height: 180,}
+const {width, height} = Dimensions.get("window");
+const IMAGE_DIMENSIONS = {width, height}
 const CENTER = {x: IMAGE_DIMENSIONS.width / 2, y: IMAGE_DIMENSIONS.height / 2}
 
 const runTimming = (clock: Clock, from: Animated.Value<number>, reset: () => Animated.Node<number>) => {
@@ -120,14 +122,14 @@ const App = () => {
           onHandlerStateChange={_onPinchGestureEvent}>
             <Animated.Image
               resizeMode="stretch"
-              source={require("./avatar.png")}
+              source={require("./water.jpg")}
               style={[
                 styles.pinchableImage,
                 {
                   transform: [
                     {translateX: origin.x},
                     {translateY: origin.y},
-                    { scale: _scaleTiming },
+                    { scale: cond(greaterOrEq(_scaleTiming, 1), _scaleTiming, 1) },
                     {translateX: multiply(-1, origin.x)},
                     {translateY: multiply(-1, origin.y)},
 
